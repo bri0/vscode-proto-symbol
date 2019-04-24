@@ -2,7 +2,7 @@
     "name": "proto3-nav",
     "displayName": "proto3-nav",
     "description": "Navigation through proto3",
-    "version": "0.0.1",
+    "version": "0.0.2",
     "engines": {
         "vscode": "^1.33.0"
     },
@@ -10,19 +10,23 @@
         "Other"
     ],
     "activationEvents": [
-        "onLanguage:proto"
+        "onLanguage:proto3"
     ],
     "main": "./out/extension",
     "contributes": {
         "languages": [
             {
-                "id": "proto",
+                "id": "proto3",
                 "extensions": [
                     ".proto"
                 ]
             }
         ]
     },
+    "repository": {
+        "url": "https://github.com/bri0/vscode-proto-symbol"
+    },
+    "publisher": "bri0",
     "scripts": {
         "vscode:prepublish": "npm run compile",
         "compile": "tsc -p ./",
