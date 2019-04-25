@@ -15,7 +15,7 @@ export function activate(context: vscode.ExtensionContext) {
 export function deactivate() {
 }
 
-const SignatureRegex = /^\s*(message|enum|service|rpc)\s+(\w+)\s+{.*/;
+const SignatureRegex = /^(\s*)(message|enum|service|rpc)\s+(\w+)\s+{.*/;
 
 class ProtoDocumentSymbolProvider implements vscode.DocumentSymbolProvider {
     public provideDocumentSymbols(document: vscode.TextDocument,
@@ -23,14 +23,17 @@ class ProtoDocumentSymbolProvider implements vscode.DocumentSymbolProvider {
         return new Promise((resolve, reject) => {
             let symbols: vscode.SymbolInformation[] = [];
 
+            let containers: {lvl: number, id: string}[] = [];
+            let lastLvl = -1;
+
             for (let i = 0; i < document.lineCount; i++) {
                 let line = document.lineAt(i);
                 let matches = line.text.match(SignatureRegex);
-                if (!matches || matches.length < 3) {
+                if (!matches || matches.length < 4) {
                     continue;
                 }
                 let symbolKind: vscode.SymbolKind;
-                switch (matches[1]) {
+                switch (matches[2]) {
                     case "enum":
                         symbolKind = vscode.SymbolKind.Enum;
                         break;
@@ -44,10 +47,40 @@ class ProtoDocumentSymbolProvider implements vscode.DocumentSymbolProvider {
                         symbolKind = vscode.SymbolKind.Struct;
                         break;
                 }
+
+                if (matches[1].length > lastLvl) {
+                    lastLvl = matches[1].length;
+                    containers.push({
+                        id: matches[3],
+                        lvl: lastLvl,
+                    });
+                }
+
+                if (matches[1].length === lastLvl) {
+                    containers.pop();
+                    containers.push({
+                        id: matches[3],
+                        lvl: lastLvl,
+                    });
+                }
+
+                if (matches[1].length < lastLvl) {
+                    lastLvl = matches[1].length;
+                    while (containers.length > 0 && containers[containers.length-1].lvl >= lastLvl) {
+                        containers.pop();
+                    }
+                    containers.push({
+                        id: matches[3],
+                        lvl: lastLvl,
+                    });
+                }
+
+                let containerName = containers.map((con: {lvl: number; id: string}) => con.id).join(" > ");
+
                 symbols.push(new vscode.SymbolInformation(
-                    matches[2],
+                    matches[3],
                     symbolKind,
-                    document.fileName,
+                    containerName,
                     new vscode.Location(document.uri, line.range),
                 ));
             }
