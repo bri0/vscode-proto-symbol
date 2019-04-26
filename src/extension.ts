@@ -9,6 +9,9 @@ export function activate(context: vscode.ExtensionContext) {
     context.subscriptions.push(vscode.languages.registerDocumentSymbolProvider(
         { language: "proto3" }, new ProtoDocumentSymbolProvider()
     ));
+    vscode.languages.registerCompletionItemProvider(
+        { language: "proto3" }, new ProtoNumberCompletionItemProvider(), "="
+    );
 }
 
 // this method is called when your extension is deactivated
@@ -88,4 +91,108 @@ class ProtoDocumentSymbolProvider implements vscode.DocumentSymbolProvider {
             resolve(symbols);
         });
     }
+}
+
+const lineCommentRegex = /\/\/.*$/;
+const startBlockRegex = /^\s*(message|enum)\s+\w+\s+{$/;
+const endBlockRegex = /^\s*}$/;
+
+class ProtoNumberCompletionItemProvider implements vscode.CompletionItemProvider {
+    public provideCompletionItems(
+        document: vscode.TextDocument,
+        position: vscode.Position,
+        token: vscode.CancellationToken,
+        context: vscode.CompletionContext): Thenable<vscode.CompletionItem[]>
+    {
+        return new Promise((resolve, reject) => {
+            const res: vscode.CompletionItem[] = [];
+            let lineText = document.lineAt(position.line).text;
+            // trim comment
+            lineText = lineText.replace(lineCommentRegex, "").trim();
+
+            // Check if { pointer }
+            const leftBracket = lineText.indexOf("{");
+            const rightBracket = lineText.indexOf("}");
+            if (leftBracket > 0 || rightBracket > 0) {
+                return resolve(res);
+            }
+
+            let allNumber: number[] = [];
+            // Check number until smt start with message|enum ... {
+            let upperLine = position.line;
+            while (upperLine > 0) {
+                upperLine -= 1;
+                const lineText = document.lineAt(upperLine).text.replace(lineCommentRegex, "").trim();
+                if (lineText.match(startBlockRegex)) {
+                    break;
+                }
+                const nums = findProtoNums(lineText);
+                nums.forEach((num: number) => {
+                    if (num > 0) {
+                        allNumber.push(num);
+                    }
+                });
+            }
+            // Check until end of the block
+            let lowerLine = position.line;
+            while (lowerLine < document.lineCount - 1) {
+                lowerLine += 1;
+                const lineText = document.lineAt(lowerLine).text.replace(lineCommentRegex, "").trim();
+                if (lineText.match(endBlockRegex)) {
+                    break;
+                }
+                const nums = findProtoNums(lineText);
+                nums.forEach((num: number) => {
+                    if (num > 0) {
+                        allNumber.push(num);
+                    }
+                });
+            }
+
+            // Make it unique
+            allNumber = Array.from(new Set(allNumber));
+            allNumber.sort((left, right) => left - right);
+            let nextMax = 0;
+            let nextAvail = 0;
+            if (allNumber.length > 0) {
+                nextMax = allNumber[allNumber.length - 1] + 1;
+                while (allNumber.length > 0) {
+                    const top = allNumber.shift();
+                    if (top !== nextAvail + 1) {
+                        break;
+                    }
+                    nextAvail += 1;
+                }
+            }
+            nextAvail += 1;
+            res.push(new vscode.CompletionItem(` ${nextMax};`));
+            if (nextAvail !== nextMax) {
+                res.push(new vscode.CompletionItem(` ${nextAvail};`));
+            }
+            resolve(res);
+        });
+    }
+}
+
+const reserveRegex = /\s*reserved\s+([0-9,\s]+)/;
+const fieldRegex = /^.+\s*=\s*([1-9]+[0-9]*)\s*/;
+
+function findProtoNums(line: string): number[] {
+    const res: number[] = [];
+    const reserveRes = line.match(reserveRegex);
+    if (reserveRes) {
+        reserveRes[1].split(",").forEach((str: string) => {
+            const tr = str.trim();
+            if (tr !== "") {
+                res.push(parseInt(tr));
+            }
+        });
+        return Array.from(new Set(res));
+    }
+    const fieldRes = line.match(fieldRegex);
+    if (fieldRes) {
+        res.push(parseInt(fieldRes[1].trim()));
+        return Array.from(new Set(res));
+    }
+    return res;
 }
