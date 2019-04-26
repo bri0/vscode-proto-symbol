@@ -117,36 +117,59 @@ class ProtoNumberCompletionItemProvider implements vscode.CompletionItemProvider
                 return resolve(res);
             }
 
+            let closureNum = 0;
+
             let allNumber: number[] = [];
             // Check number until smt start with message|enum ... {
             let upperLine = position.line;
             while (upperLine > 0) {
                 upperLine -= 1;
                 const lineText = document.lineAt(upperLine).text.replace(lineCommentRegex, "").trim();
-                if (lineText.match(startBlockRegex)) {
-                    break;
+                if (lineText.match(endBlockRegex)) {
+                    closureNum += 1;
+                    continue;
                 }
-                const nums = findProtoNums(lineText);
-                nums.forEach((num: number) => {
-                    if (num > 0) {
-                        allNumber.push(num);
+                if (lineText.match(startBlockRegex)) {
+                    if (closureNum === 0) {
+                        break;
                     }
-                });
+                    closureNum -= 1;
+                    continue;
+                }
+                if (closureNum === 0) {
+                    const nums = findProtoNums(lineText);
+                    nums.forEach((num: number) => {
+                        if (num > 0) {
+                            allNumber.push(num);
+                        }
+                    });
+                }
             }
             // Check until end of the block
             let lowerLine = position.line;
+            closureNum = 0;
             while (lowerLine < document.lineCount - 1) {
                 lowerLine += 1;
                 const lineText = document.lineAt(lowerLine).text.replace(lineCommentRegex, "").trim();
-                if (lineText.match(endBlockRegex)) {
-                    break;
+                if (lineText.match(startBlockRegex)) {
+                    closureNum += 1;
+                    continue;
                 }
-                const nums = findProtoNums(lineText);
-                nums.forEach((num: number) => {
-                    if (num > 0) {
-                        allNumber.push(num);
+                if (lineText.match(endBlockRegex)) {
+                    if (closureNum === 0) {
+                        break;
                     }
-                });
+                    closureNum -= 1;
+                    continue;
+                }
+                if (closureNum === 0) {
+                    const nums = findProtoNums(lineText);
+                    nums.forEach((num: number) => {
+                        if (num > 0) {
+                            allNumber.push(num);
+                        }
+                    });
+                }
             }
 
             // Make it unique
