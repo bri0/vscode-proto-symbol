@@ -2,7 +2,7 @@
     "name": "proto3-nav",
     "displayName": "proto3-nav",
     "description": "Navigation through proto3",
-    "version": "0.1.1",
+    "version": "0.1.2",
     "engines": {
         "vscode": "^1.33.0"
     },

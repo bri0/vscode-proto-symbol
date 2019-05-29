@@ -118,6 +118,7 @@ class ProtoNumberCompletionItemProvider implements vscode.CompletionItemProvider
             }
 
             let closureNum = 0;
+            let inOneofClosure: boolean = false;
 
             let allNumber: number[] = [];
             // Check number until smt start with message|enum ... {
@@ -132,7 +133,14 @@ class ProtoNumberCompletionItemProvider implements vscode.CompletionItemProvider
                 }
                 const lineRes = lineText.match(startBlockRegex);
                 if (lineRes) {
+                    if (closureNum < 0) {
+                        break;
+                    }
                     if (closureNum === 0) {
+                        if (lineRes[1] === "oneof" && !inOneofClosure) {
+                            inOneofClosure = true;
+                            continue;
+                        }
                         break;
                     }
                     // If it is the first oneof then count
@@ -172,6 +180,7 @@ class ProtoNumberCompletionItemProvider implements vscode.CompletionItemProvider
             let lowerLine = position.line;
             closureNum = 0;
             let inoneof: boolean = false;
+            let outOfOneofClosure: boolean = false;
             while (lowerLine < document.lineCount - 1) {
                 lowerLine += 1;
                 const lineText = document.lineAt(lowerLine).text.replace(lineCommentRegex, "").trim();
@@ -186,6 +195,10 @@ class ProtoNumberCompletionItemProvider implements vscode.CompletionItemProvider
                 }
                 if (lineText.match(endBlockRegex)) {
                     if (closureNum === 0) {
+                        if (inOneofClosure && !outOfOneofClosure) {
+                            outOfOneofClosure = true;
+                            continue;
+                        }
                         break;
                     }
                     closureNum -= 1;
