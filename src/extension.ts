@@ -94,7 +94,7 @@ class ProtoDocumentSymbolProvider implements vscode.DocumentSymbolProvider {
 }
 
 const lineCommentRegex = /\/\/.*$/;
-const startBlockRegex = /^\s*(message|enum)\s+\w+\s+{$/;
+const startBlockRegex = /^\s*(message|enum|oneof)\s+\w+\s+{$/;
 const endBlockRegex = /^\s*}$/;
 
 class ProtoNumberCompletionItemProvider implements vscode.CompletionItemProvider {
@@ -122,6 +122,7 @@ class ProtoNumberCompletionItemProvider implements vscode.CompletionItemProvider
             let allNumber: number[] = [];
             // Check number until smt start with message|enum ... {
             let upperLine = position.line;
+            let oneofNums: number[] = [];
             while (upperLine > 0) {
                 upperLine -= 1;
                 const lineText = document.lineAt(upperLine).text.replace(lineCommentRegex, "").trim();
@@ -129,12 +130,34 @@ class ProtoNumberCompletionItemProvider implements vscode.CompletionItemProvider
                     closureNum += 1;
                     continue;
                 }
-                if (lineText.match(startBlockRegex)) {
+                const lineRes = lineText.match(startBlockRegex);
+                if (lineRes) {
                     if (closureNum === 0) {
                         break;
                     }
+                    // If it is the first oneof then count
+                    if (closureNum === 1) {
+                        if (lineRes[1] === "oneof") {
+                        oneofNums.forEach((num: number) => {
+                            if (num > 0) {
+                                allNumber.push(num);
+                            }
+                        });
+                        } else {
+                            oneofNums = [];
+                        }
+                    }
                     closureNum -= 1;
                     continue;
+                }
+                // Collect in the case of oneof
+                if (closureNum === 1) {
+                    const nums = findProtoNums(lineText);
+                    nums.forEach((num: number) => {
+                        if (num > 0) {
+                            oneofNums.push(num);
+                        }
+                    });
                 }
                 if (closureNum === 0) {
                     const nums = findProtoNums(lineText);
@@ -148,11 +171,17 @@ class ProtoNumberCompletionItemProvider implements vscode.CompletionItemProvider
             // Check until end of the block
             let lowerLine = position.line;
             closureNum = 0;
+            let inoneof: boolean = false;
             while (lowerLine < document.lineCount - 1) {
                 lowerLine += 1;
                 const lineText = document.lineAt(lowerLine).text.replace(lineCommentRegex, "").trim();
-                if (lineText.match(startBlockRegex)) {
+                const lineRes = lineText.match(startBlockRegex);
+                if (lineRes) {
                     closureNum += 1;
+                    if (closureNum === 1) {
+                        inoneof = lineRes[1] === 'oneof';
+                    }
+
                     continue;
                 }
                 if (lineText.match(endBlockRegex)) {
@@ -162,7 +191,7 @@ class ProtoNumberCompletionItemProvider implements vscode.CompletionItemProvider
                     closureNum -= 1;
                     continue;
                 }
-                if (closureNum === 0) {
+                if (closureNum === 0 || (inoneof && closureNum === 1)) {
                     const nums = findProtoNums(lineText);
                     nums.forEach((num: number) => {
                         if (num > 0) {
