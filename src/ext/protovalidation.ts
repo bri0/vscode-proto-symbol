@@ -76,7 +76,7 @@ export class EnvoyValidateionCompletionItemProvider implements vscode.Completion
             }
             if (scala) {
                 const attrs = ruleMap[scala];
-                if (attrs.length > 0) {
+                if (attrs && attrs.length > 0) {
                     for (let i = 0; i < attrs.length; i++) {
                         res.push(new vscode.CompletionItem(`validate.rules).${scala}.${attrs[i]} = `));
                     }
