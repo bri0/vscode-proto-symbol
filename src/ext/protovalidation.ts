@@ -45,6 +45,13 @@ const ruleMap: { [key: string]: string[] } = {
     timestamp: ['required', 'const', 'lt', 'lte', 'gt', 'gte', 'lt_now', 'gt_now', 'within'],
 };
 
+function createCompletion(repeated:boolean, scala: string, attr: string):vscode.CompletionItem {
+    if (repeated) {
+        return new vscode.CompletionItem(`validate.rules).repeated.items.${scala}.${attr} = (`);
+    }
+    return new vscode.CompletionItem(`validate.rules).${scala}.${attr} = (`);
+}
+
 export class EnvoyValidateionCompletionItemProvider implements vscode.CompletionItemProvider {
     public provideCompletionItems(
         document: vscode.TextDocument,
@@ -63,6 +70,14 @@ export class EnvoyValidateionCompletionItemProvider implements vscode.Completion
             const res: vscode.CompletionItem[] = [];
             let lineText = document.lineAt(position.line).text.trim();
 
+            const inRepeated = lineText.startsWith("repeated ");
+            if (inRepeated) {
+                lineText = lineText.substr(9);
+                for (let i = 0; i < ruleMap['repeated'].length; i++) {
+                    res.push(createCompletion(false, 'repeated', ruleMap['repeated'][i]));
+                }
+            }
+
             const pbLineRes = lineText.match(startProtobuf);
             let scala: string|null = null;
             if (pbLineRes) {
@@ -74,11 +89,11 @@ export class EnvoyValidateionCompletionItemProvider implements vscode.Completion
                     scala = scalaLineRes[1];
                 }
             }
-            if (scala) {
+            if (scala && scala !== "repeated") {
                 const attrs = ruleMap[scala];
                 if (attrs && attrs.length > 0) {
                     for (let i = 0; i < attrs.length; i++) {
-                        res.push(new vscode.CompletionItem(`validate.rules).${scala}.${attrs[i]} = `));
+                        res.push(createCompletion(inRepeated, scala, attrs[i]));
                     }
                     return resolve(res);
                 }
@@ -86,10 +101,10 @@ export class EnvoyValidateionCompletionItemProvider implements vscode.Completion
 
             // Default to message and enum
             for (let i = 0; i < ruleMap['message'].length; i++) {
-                res.push(new vscode.CompletionItem(`validate.rules).message.${ruleMap['message'][i]} = `));
+                res.push(createCompletion(inRepeated, 'message', ruleMap['message'][i]));
             }
             for (let i = 0; i < ruleMap['enum'].length; i++) {
-                res.push(new vscode.CompletionItem(`validate.rules).enum.${ruleMap['message'][i]} = `));
+                res.push(createCompletion(inRepeated, 'enum', ruleMap['enum'][i]));
             }
             return resolve(res);
         });
